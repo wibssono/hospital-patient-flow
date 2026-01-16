@@ -3,11 +3,11 @@ import os
 import random
 import uuid
 import time
-from doteng import load_dotenv
+from dotenv import load_dotenv
 from datetime import datetime, timedelta
-from kafka import KafkaProducer
+""" from kafka import KafkaProducer """
 
-#Load environment variables from config/settings.env
+""" #Load environment variables from config/settings.env
 load_dotenv(dotenv_path="config/settings.env")
 
 #Eventhub Configuration
@@ -22,7 +22,7 @@ producer = KafkaProducer(
     sasl_plain_username="$ConnectionString",
     sasl_plain_password=CONNECTION_STRING,
     value_serializer=lambda v: json.dumps(v).encode('utf-8')
-)
+) """
 
 # Departments in hospital
 departments = ["Emergency", "Surgery", "ICU", "Pediatrics", "Maternity", "Oncology", "Cardiology"]
@@ -63,7 +63,7 @@ def generate_patient_event():
 if __name__ == "__main__":
     while True:
         event = generate_patient_event()
-        producer.send(EVENT_HUB_NAME, event)
+        """ producer.send(EVENT_HUB_NAME, event) """
         print(f"Sent to Event Hub: {event}")
         time.sleep(1)
 

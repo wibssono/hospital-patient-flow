@@ -1,3 +1,4 @@
 config/settings.env
+test_codes.ipynb
 *.log
 *.tmp
