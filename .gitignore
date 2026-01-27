@@ -4,3 +4,4 @@ test_codes.ipynb
 *.tmp
 .venv/
 requirements.in
+*.ipynb_checkpoints/
