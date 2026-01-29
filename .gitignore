@@ -5,3 +5,8 @@ test_codes.ipynb
 .venv/
 requirements.in
 *.ipynb_checkpoints/
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+
