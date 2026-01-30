@@ -7,5 +7,7 @@ requires-python = ">=3.12"
 dependencies = [
     "faker==40.1.2",
     "fastapi[standard]>=0.128.0",
+    "jupyterlab>=4.5.3",
+    "pydantic>=2.12.5",
     "python-dotenv==1.2.1",
 ]

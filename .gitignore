@@ -4,9 +4,21 @@ test_codes.ipynb
 *.tmp
 .venv/
 requirements.in
-*.ipynb_checkpoints/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 
+# For notes
+note.txt
+
+.ipynb_checkpoints
+*/.ipynb_checkpoints/*
+
+# IPython
+profile_default/
+ipython_config.py
+
+# Jupyter lab virtual documents
+# https://jupyterlab-lsp.readthedocs.io/en/2.x/Configuring.html#virtual_documents_dir
+.virtual_documents/
