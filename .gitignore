@@ -10,7 +10,8 @@ __pycache__/
 *.py[cod]
 
 # For notes
-note.txt
+notes/
+notes.ext
 
 .ipynb_checkpoints
 */.ipynb_checkpoints/*

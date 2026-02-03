@@ -1,0 +1,67 @@
+from faker import Faker
+
+import uuid
+import json
+import random
+from datetime import datetime, timedelta
+
+fake = Faker('id_ID')
+
+class GeneralPatient:
+    def __init__ (self):
+        self.id = self.get_uuid()
+        self.gender = self.get_gender()
+        self.name = fake.name()
+        self.ihs = self.get_ihs()
+        self.birth_date = fake.date_of_birth(maximum_age = 70)
+        self.telcom = self.get_telcom()
+        self.address = self.get_address()
+        self.multiple_birth = self.get_multiple_birth()
+
+    def get_uuid(self) -> str:
+        uuid_ = uuid.uuid4()
+        return str(uuid_)
+
+    def get_gender(self) -> str:
+        gender = ['male', 'female']
+        return random.choice(gender)
+
+    def get_ihs(self) -> str:
+        digits = [0,1,2,3,4,5,6,7,8,9]
+        ihs_number = random.choices(digits, k=11)
+        return f'P{''.join(map(str, ihs_number))}'
+
+    def get_telcom(self) -> dict[str, str]:
+        system_choice = ['phone', 'email']
+        telcom = {}
+        value, use = None, None
+        for system in system_choice:
+            if system == 'phone':
+                value = fake.phone_number()
+                use = 'mobile'
+            if system == 'email':
+                value = fake.ascii_free_email()
+                use = 'home'
+            telcom.update({"system": system, "value": value, 'use': use})
+        return telcom
+
+    def get_address(self) -> dict[str, str]:
+        use = random.choice(['home', 'temporary'])
+        line = fake.street_address()
+        city = fake.city_name()
+        postal_code = fake.postcode()
+        return {"use": use, "line": line, "city": city, "postal_code": postal_code}
+
+    def get_multiple_birth(self) -> int:
+        multiple_birth = 0
+        if self.gender == 'male':
+            multiple_birth = 0
+        elif self.gender == 'female':
+            age = ((datetime.combine(self.birth_date, datetime.min.time())) - datetime.now()).days // 365
+            if random.randint(0, 100) < 50 and age > 17:
+                multiple_birth = random.randint(1, 8)
+            multiple_birth = 0
+        return multiple_birth
+
+    def debug_print(self) -> dict[str, str | int]:
+        return self.__dict__
