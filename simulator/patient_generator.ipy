@@ -3,7 +3,7 @@ from faker import Faker
 import uuid
 import json
 import random
-from datetime import datetime, timedelta
+from datetime import datetime
 
 fake = Faker('id_ID')
 
@@ -11,12 +11,16 @@ class GeneralPatient:
     def __init__ (self):
         self.id = self.get_uuid()
         self.gender = self.get_gender()
-        self.name = fake.name()
+        self.name = self.get_name()
         self.ihs = self.get_ihs()
-        self.birth_date = fake.date_of_birth(maximum_age = 70)
+        fake_birth = fake.date_of_birth(maximum_age = 70)
+        self.birth_date = str(fake_birth)
+        self.nik = self.get_nik(fake_birth)
         self.telcom = self.get_telcom()
         self.address = self.get_address()
-        self.multiple_birth = self.get_multiple_birth()
+        self.multiple_birth = self.get_multiple_birth(fake_birth)
+        self.language = self.get_language()
+        self.patient_link = self.get_patient_link()
 
     def get_uuid(self) -> str:
         uuid_ = uuid.uuid4()
@@ -25,11 +29,35 @@ class GeneralPatient:
     def get_gender(self) -> str:
         gender = ['male', 'female']
         return random.choice(gender)
+    
+    def get_name(self) -> str:
+        name = ''
+        if self.gender == 'male':
+            name = fake.name_male()
+        elif self.gender == 'female':
+            name = fake.name_female()
+        return name
 
     def get_ihs(self) -> str:
         digits = [0,1,2,3,4,5,6,7,8,9]
         ihs_number = random.choices(digits, k=11)
         return f'P{''.join(map(str, ihs_number))}'
+
+    def get_nik(self, dob) -> str:
+        dob = dob
+        province = str(random.randint(31, 36))
+        city = str(random.randint(71, 78))
+        sub_disctrict = f'{random.randint(1, 9):02d}'
+        day = '00'
+        if self.gender == 'male':
+            day = str(dob.day).zfill(2)
+        if self.gender == 'female':
+            day = str(int(dob.day) + 40)
+        month = str(dob.month).zfill(2)
+        year = str(dob.year)[2:]
+        registry_num = f'{random.randint(1, 1000):04d}'
+        nik = province + city + sub_disctrict + day + month + year + registry_num
+        return nik
 
     def get_telcom(self) -> dict[str, str]:
         system_choice = ['phone', 'email']
@@ -52,16 +80,34 @@ class GeneralPatient:
         postal_code = fake.postcode()
         return {"use": use, "line": line, "city": city, "postal_code": postal_code}
 
-    def get_multiple_birth(self) -> int:
+    def get_multiple_birth(self, dob) -> int:
+        dob = dob
         multiple_birth = 0
         if self.gender == 'male':
             multiple_birth = 0
         elif self.gender == 'female':
-            age = ((datetime.combine(self.birth_date, datetime.min.time())) - datetime.now()).days // 365
+            age = ((datetime.combine(dob, datetime.min.time())) - datetime.now()).days // 365
             if random.randint(0, 100) < 50 and age > 17:
                 multiple_birth = random.randint(1, 8)
             multiple_birth = 0
         return multiple_birth
 
+    def get_language(self) -> dict [str, str]:
+        code = 'id-ID'
+        display = 'Indonesian'
+        return {"code": code, "display": display}
+
+    def get_patient_link(self) -> (str | None):
+        patient_link = None
+        if random.randint(1, 100) < 10:
+            digits = [0,1,2,3,4,5,6,7,8,9]
+            patient_number = random.choices(digits, k=11)
+            patient_link = f'P{patient_number}'
+        return patient_link
+
     def debug_print(self) -> dict[str, str | int]:
         return self.__dict__
+
+if __name__ == '__main__':
+    patient = GeneralPatient()
+    print(json.dumps(patient.debug_print(), indent=2))
