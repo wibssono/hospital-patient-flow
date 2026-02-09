@@ -1,13 +1,18 @@
+# FHIR General Resources
 from fhir.resources.address import Address
 from fhir.resources.codeableconcept import CodeableConcept
 from fhir.resources.coding import Coding
-from fhir.resources.patient import PatientCommunication
 from fhir.resources.humanname import HumanName
+from fhir.resources.identifier import Identifier
+# Organizatoin
+from fhir.resources.organization import Organization
+# Patient
+from fhir.resources.patient import PatientCommunication
+# Practitioner
 from fhir.resources.practitioner import PractitionerQualification
-
+# Generator Resources
 from faker import Faker
 from datetime import datetime
-
 import random
 import time
 
@@ -138,65 +143,101 @@ class Identifiers:
     def debug_print(self) -> dict[str, str | int]:
         return self.__dict__
 
-class GeneralPatient(Identifiers):
-    id_itter_gen = IdIteration.iteration_gen()
+class OrganizationGenerator:
+    def __init__ (self, identifier: str = "10000004", active: bool = True):
+        self.identifier = self.get_identifier(identifier)
+        self.active = active
+        self.name = self.get_org_name()
+        self.alias = self.get_org_alias()
+        self.type = self.get_type()
+        self.telcom = self.get_telcom()
+        self.address = self.get_address()
+        self.contact
+    
+    def get_identifier(self, value) -> list[dict[str, str]]:
+        identifier = []
+        identifier.append({
+            "use": "official", 
+            "system": "http://sys-ids.kemkes.go.id/organization/str", 
+            "value": value
+                           })
+        return identifier   
 
-    def __init__ (self):
-        super().__init__()
-        self.itter_id = next(self.id_itter_gen) # Best if you use snomed or uuidv7
-        self.id = self.get_id()
-        self.name = self.get_name()
-        self.multiple_birth = self.get_multiple_birth(self.birth_date)
-        self.patient_link = self.get_patient_link()
+    def get_org_name(self) -> str:
+        org_suffix = random.choice(['RSUD', 'RSIA', 'RSPP'])
+        org_name = f'{org_suffix} {fake.city_name()}'
+        return org_name
 
-    def get_id(self) -> str:
-        curr_itter_id = self.itter_id
-        curr_date = datetime.now()
-        
-        month = str(curr_date.month).zfill(2) 
-        day = str(curr_date.day).zfill(2)
-        hour = str(curr_date.hour).zfill(2)
-        patient_id = str(curr_itter_id).zfill(3)
+    def get_org_alias(self) -> str:
+        alias = []
+        name = self.get_org_name()
+        print(name)
+        alias.append(name.split()[0])
+        shortned = [w[0] for w in name.split()][1:]
+        shortned = ''.join(shortned)
+        alias.append(shortned)
+        alias = '-'.join(alias)
+        return alias
 
-        return f'PAT-{month}{day}{hour}{patient_id}'
-
-    def get_name(self) -> list[HumanName]:
-        _name = ''
-        gender = self.gender
-        if gender == 'male':
-            _name = fake.name_male()
-        elif gender == 'female':
-            _name = fake.name_female()
-        name = HumanName(
-            use="official",
-            text=_name
+    def get_type(self) -> list[CodeableConcept]:
+        code = CodeableConcept(
+            coding=[{
+                "system": "http://terminology.hl7.org/CodeSystem/organization-type",
+                "code": "prov",
+                "display": "Healthcare Provider"
+            }]
         )
-        return [name]
+        return [code]
 
-    def get_multiple_birth(self, dob) -> int:
-        dob = dob
-        multiple_birth = 0
-        if self.gender == 'male':
-            multiple_birth = 0
-        elif self.gender == 'female':
-            age = (datetime.now() - (datetime.combine(dob, datetime.min.time()))).days // 365
-            if random.randint(0, 100) < 50 and age > 25:
-                multiple_birth = random.randint(1, 8)
-        return multiple_birth
+    def get_telcom(self) -> list[dict[str, str]]:
+        telcom = []
+        phone_contact = {"system": "phone", "value": f"021-{random.randint(1000000, 9999999)}", "use": "work"}
+        telcom.append(phone_contact)
+        email_contact = {"system": "email", "value": f"info@{self.alias.lower()}.go.id", "use": "work"}
+        telcom.append(email_contact)
+        url_contact = {"system": "url", "value": f"http://www.{self.alias.lower()}.go.id", "use": "work"}
+        telcom.append(url_contact)
+        return telcom
+    
+    def get_address(self) -> list[Address]:
+        _line = []
+        _line.append(fake.street_address())
+        if random.randint(1, 100) < 50:
+            _line.append(fake.street_address())
+        _city = fake.city_name()
+        _postal_code = fake.postcode()
 
-    def get_patient_link(self) -> (list[dict[str, str]]):
-        link = {"other": {"reference": "None"}, "type": "None"}
-        if random.randint(1, 100) < 10:
-            patient_link = {}
-            digits = [0,1,2,3,4,5,6,7,8,9]
-            patient_number = random.choices(digits, k=11)
-            reference = f'Patient/P{''.join(map(str, patient_number))}'
-            link = {"other": {"reference": reference}, "type": "replaced-by"}
+        address = Address(
+            use="work",
+            type="both",
+            line=_line,
+            city=_city,
+            postalCode=_postal_code,
+            country="ID",
+            extension=[
+                {
+                    "url": "https://fhir.kemkes.go.id/id/extension/province-code",
+                    "valueString": str(random.randint(31, 36))
+                },
+                {
+                    "url": "https://fhir.kemkes.go.id/id/extension/city-code",
+                    "valueString": str(random.randint(71, 78))
+                },
+                {
+                    "url": "https://fhir.kemkes.go.id/id/extension/district-code",
+                    "valueString": f'{random.randint(1, 9):02d}'
+                },
+                {
+                    "url": "https://fhir.kemkes.go.id/id/extension/village-code", 
+                    "valueString": f'{random.randint(1, 99):02d}'
+                }
+            ]
+        )
 
-        return [link]
+    def get_contact(self):
+        pass
 
-    def debug_print(self) -> dict[str, str | int]:
-        return self.__dict__
+
 
 class PracticionerGenerator(Identifiers):
     class Qualification:
@@ -329,3 +370,63 @@ class PracticionerGenerator(Identifiers):
             text=_name
         )
         return [name]
+
+class PatientGenerator(Identifiers):
+    id_itter_gen = IdIteration.iteration_gen()
+
+    def __init__ (self):
+        super().__init__()
+        self.itter_id = next(self.id_itter_gen) # Best if you use snomed or uuidv7
+        self.id = self.get_id()
+        self.name = self.get_name()
+        self.multiple_birth = self.get_multiple_birth(self.birth_date)
+        self.patient_link = self.get_patient_link()
+
+    def get_id(self) -> str:
+        curr_itter_id = self.itter_id
+        curr_date = datetime.now()
+        
+        month = str(curr_date.month).zfill(2) 
+        day = str(curr_date.day).zfill(2)
+        hour = str(curr_date.hour).zfill(2)
+        patient_id = str(curr_itter_id).zfill(3)
+
+        return f'PAT-{month}{day}{hour}{patient_id}'
+
+    def get_name(self) -> list[HumanName]:
+        _name = ''
+        gender = self.gender
+        if gender == 'male':
+            _name = fake.name_male()
+        elif gender == 'female':
+            _name = fake.name_female()
+        name = HumanName(
+            use="official",
+            text=_name
+        )
+        return [name]
+
+    def get_multiple_birth(self, dob) -> int:
+        dob = dob
+        multiple_birth = 0
+        if self.gender == 'male':
+            multiple_birth = 0
+        elif self.gender == 'female':
+            age = (datetime.now() - (datetime.combine(dob, datetime.min.time()))).days // 365
+            if random.randint(0, 100) < 50 and age > 25:
+                multiple_birth = random.randint(1, 8)
+        return multiple_birth
+
+    def get_patient_link(self) -> (list[dict[str, str]]):
+        link = {"other": {"reference": "None"}, "type": "None"}
+        if random.randint(1, 100) < 10:
+            patient_link = {}
+            digits = [0,1,2,3,4,5,6,7,8,9]
+            patient_number = random.choices(digits, k=11)
+            reference = f'Patient/P{''.join(map(str, patient_number))}'
+            link = {"other": {"reference": reference}, "type": "replaced-by"}
+
+        return [link]
+
+    def debug_print(self) -> dict[str, str | int]:
+        return self.__dict__

@@ -3,9 +3,10 @@ from fhir.resources.patient import Patient
 from fhir.resources.practitioner import Practitioner
 
 def generate_patient_event() -> Patient:
-    patient = resources.GeneralPatient()
+    patient = resources.PatientGenerator()
     patient_event = Patient(
         id = patient.id,
+        status
         name = patient.name,
         gender = patient.gender,
         birthDate = patient.birth_date,
