@@ -15,6 +15,7 @@ from faker import Faker
 from datetime import datetime
 import random
 import time
+from typing import cast, List, Optional
 
 fake = Faker('id_ID')
 
@@ -150,9 +151,7 @@ class OrganizationGenerator:
         self.name = self.get_org_name()
         self.alias = self.get_org_alias()
         self.type = self.get_type()
-        self.telcom = self.get_telcom()
-        self.address = self.get_address()
-        self.contact
+        self.contact = self.get_contact()
     
     def get_identifier(self, value) -> list[dict[str, str]]:
         identifier = []
@@ -168,16 +167,23 @@ class OrganizationGenerator:
         org_name = f'{org_suffix} {fake.city_name()}'
         return org_name
 
-    def get_org_alias(self) -> str:
-        alias = []
-        name = self.get_org_name()
-        print(name)
-        alias.append(name.split()[0])
-        shortned = [w[0] for w in name.split()][1:]
-        shortned = ''.join(shortned)
-        alias.append(shortned)
-        alias = '-'.join(alias)
-        return alias
+    def get_org_alias(self) -> list[str | None] | None:
+        alias = None
+        chance = random.randint(0, 100)
+        if not self.name:
+            return alias
+        if chance <= 50:
+            return alias
+        else:
+            alias = []
+            name = self.get_org_name()
+            _name = [name.split()[0]]
+            shortned = [w[0] for w in name.split()][1:]
+            shortned = ''.join(shortned)
+            _name.append(shortned)
+            _name = '-'.join(_name)
+            alias.append(_name)
+            return alias
 
     def get_type(self) -> list[CodeableConcept]:
         code = CodeableConcept(
@@ -191,15 +197,26 @@ class OrganizationGenerator:
 
     def get_telcom(self) -> list[dict[str, str]]:
         telcom = []
-        phone_contact = {"system": "phone", "value": f"021-{random.randint(1000000, 9999999)}", "use": "work"}
-        telcom.append(phone_contact)
-        email_contact = {"system": "email", "value": f"info@{self.alias.lower()}.go.id", "use": "work"}
-        telcom.append(email_contact)
-        url_contact = {"system": "url", "value": f"http://www.{self.alias.lower()}.go.id", "use": "work"}
-        telcom.append(url_contact)
+        if self.alias == None:
+            name = self.name.replace(" ", "-").lower()
+            phone_contact = {"system": "phone", "value": f"021-{random.randint(1000000, 9999999)}", "use": "work"}
+            telcom.append(phone_contact)
+            email_contact = {"system": "email", "value": f"info@{name}.go.id", "use": "work"}
+            telcom.append(email_contact)
+            url_contact = {"system": "url", "value": f"http://www.{name}.go.id", "use": "work"}
+            telcom.append(url_contact)
+        elif isinstance(self.alias[0], str):
+            phone_contact = {"system": "phone", "value": f"021-{random.randint(1000000, 9999999)}", "use": "work"}
+            telcom.append(phone_contact)
+            email_contact = {"system": "email", "value": f"info@{self.alias[0].lower()}.go.id", "use": "work"}
+            telcom.append(email_contact)
+            url_contact = {"system": "url", "value": f"http://www.{self.alias[0].lower()}.go.id", "use": "work"}
+            telcom.append(url_contact)
+        else:
+            return telcom
         return telcom
     
-    def get_address(self) -> list[Address]:
+    def get_address(self) -> Address:
         _line = []
         _line.append(fake.street_address())
         if random.randint(1, 100) < 50:
@@ -233,11 +250,21 @@ class OrganizationGenerator:
                 }
             ]
         )
+        return address
 
-    def get_contact(self):
-        pass
-
-
+    def get_contact(self) -> list[dict[str, str | list[Address]]]:
+        contact = []
+        purpose = CodeableConcept(coding=[{"system": "http://terminology.hl7.org/CodeSystem/contactentity-type",
+                                           "code": "ADMIN",
+                                           "display": "Administrative"}])
+        contact_dict = {
+            "purpose": purpose,
+            "name": [{"text": "Bagian Administrasi"}],
+            "telecom": self.get_telcom(),
+            "address": self.get_address()
+        }
+        contact.append(contact_dict)
+        return contact
 
 class PracticionerGenerator(Identifiers):
     class Qualification:

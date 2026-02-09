@@ -1,12 +1,12 @@
 import resources
 from fhir.resources.patient import Patient
 from fhir.resources.practitioner import Practitioner
+from fhir.resources.organization import Organization
 
 def generate_patient_event() -> Patient:
     patient = resources.PatientGenerator()
     patient_event = Patient(
         id = patient.id,
-        status
         name = patient.name,
         gender = patient.gender,
         birthDate = patient.birth_date,
@@ -25,3 +25,15 @@ def generate_practitioner_event(practitioner: str, building: str) -> Practitione
         birthDate= practicioner.birth_date
     )
     return practitioner_event
+
+def generate_organization():
+    organization = resources.OrganizationGenerator()
+    organization_event = Organization(
+        identifier=organization.identifier,
+        active=organization.active,
+        type=organization.type,
+        name=organization.name,
+        alias=organization.alias,
+        contact=organization.contact
+    )
+    return organization_event
