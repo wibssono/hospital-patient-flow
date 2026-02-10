@@ -2,6 +2,7 @@ import resources
 from fhir.resources.patient import Patient
 from fhir.resources.practitioner import Practitioner
 from fhir.resources.organization import Organization
+from fhir.resources.location import Location
 
 def generate_patient_event() -> Patient:
     patient = resources.PatientGenerator()
@@ -26,7 +27,7 @@ def generate_practitioner_event(practitioner: str, building: str) -> Practitione
     )
     return practitioner_event
 
-def generate_organization():
+def generate_organization() -> Organization:
     organization = resources.OrganizationGenerator()
     organization_event = Organization(
         identifier=organization.identifier,
@@ -37,3 +38,17 @@ def generate_organization():
         contact=organization.contact
     )
     return organization_event
+
+def generate_location(_status: str= "active", _building: str = 'G'):
+    location = resources.LocationGenerator(building=_building)
+    location_event = Location(
+        id=location.id,
+        status=_status,
+        name=location.name,
+        form=location.form,
+        extension=location.extension 
+    )
+    return location_event
+
+if __name__ == '__main__':
+    print(generate_location().json(indent=2))

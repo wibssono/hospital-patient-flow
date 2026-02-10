@@ -3,7 +3,7 @@ from fhir.resources.address import Address
 from fhir.resources.codeableconcept import CodeableConcept
 from fhir.resources.coding import Coding
 from fhir.resources.humanname import HumanName
-from fhir.resources.identifier import Identifier
+from fhir.resources.extension import Extension
 # Organizatoin
 from fhir.resources.organization import Organization
 # Patient
@@ -266,6 +266,67 @@ class OrganizationGenerator:
         contact.append(contact_dict)
         return contact
 
+class LocationGenerator:
+    def __init__(self, building: str) -> None:
+        self.building = building
+        self.id = self.get_id()
+        self.name = self.get_name() 
+        self.form = self.get_form()
+        self.extension = self.get_extension()
+
+    def get_id(self) -> str:
+        id = ''
+        letter = ''.join(random.choices('ABCDEFGHIJKLMNOPQRSTUVWXYZ', k=1))
+        if self.building == 'G':
+            id = f"LOK-GEDUNG-{letter}"
+        elif self.building == 'R':
+            id = f"LOK-RUANG-{letter}"
+        return id
+
+    def get_name(self) -> str:
+        name = self.id[4:].replace('-', ' ').title()
+        return name
+
+    def get_form(self) -> CodeableConcept | None:
+        form = None
+        if self.building:
+            _code = ''
+            _display = ''
+            if self.building == 'G':
+                _code = "bd"
+                _display = "Building"
+            elif self.building == 'R':
+                _code = "ro"
+                _display = "Room"
+            form = CodeableConcept(
+                coding=[Coding(
+                    system="http://terminology.hl7.org/CodeSystem/location-physical-type",
+                    code=_code,
+                    display=_display
+                )]
+            )
+        return form
+
+    def get_extension(self) -> list[Extension] | None:
+        extension = None
+        if self.building == 'R':
+            _code = "100"
+            _display = "Non Kelas"
+            _extension = Extension(
+                url="https://fhir.kemkes.go.id/id/extension/location-serviceClass",
+                valueCodeableConcept=CodeableConcept(
+                    coding=[Coding(
+                        system="http://terminology.kemkes.go.id/CodeSystem/location-serviceClass",
+                        code=_code,
+                        display=_display
+                    )]
+                )
+            )
+            extension = []
+            extension.append(_extension)
+            return extension
+        return extension
+        
 class PracticionerGenerator(Identifiers):
     class Qualification:
         @staticmethod
