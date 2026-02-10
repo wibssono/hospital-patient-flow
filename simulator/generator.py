@@ -1,4 +1,7 @@
 import resources
+from typing import Annotated, Literal
+from pydantic import Field
+
 from fhir.resources.patient import Patient
 from fhir.resources.practitioner import Practitioner
 from fhir.resources.organization import Organization
@@ -16,8 +19,8 @@ def generate_patient_event() -> Patient:
     )
     return patient_event
 
-def generate_practitioner_event(practitioner: str, building: str) -> Practitioner:
-    practicioner = resources.PracticionerGenerator(practitioner, building)
+def generate_practitioner_event(practitioner: Literal['dr', 'nrs', 'apt', 'lt']) -> Practitioner:
+    practicioner = resources.PracticionerGenerator(practitioner)
     practitioner_event = Practitioner(
         id = practicioner.id,
         name = practicioner.name,
@@ -51,4 +54,9 @@ def generate_location(_status: str= "active", _building: str = 'G'):
     return location_event
 
 if __name__ == '__main__':
-    print(generate_location().json(indent=2))
+    print(generate_organization().json(indent=2))
+    print(generate_patient_event().json(indent=2))
+    for practitioner in ['dr', 'nrs', 'apt']:
+        print(generate_practitioner_event(practitioner).json(indent=2))
+    for location in ['G', 'R']:
+        print(generate_location(location).json(indent=2))

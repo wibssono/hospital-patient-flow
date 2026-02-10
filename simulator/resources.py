@@ -385,7 +385,7 @@ class PracticionerGenerator(Identifiers):
                     }
             return code_dict
 
-    def __init__ (self, practitioner: str, building: str):
+    def __init__ (self, practitioner: str):
         super().__init__()
         self.id = self.get_id()
         self.birth_date = fake.date_of_birth(minimum_age=25, maximum_age=70)
