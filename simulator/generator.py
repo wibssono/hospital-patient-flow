@@ -31,7 +31,7 @@ def generate_practitioner_event(practitioner: Literal['dr', 'nrs', 'apt', 'lt'])
     return practitioner_event
 
 def generate_organization() -> Organization:
-    organization = resources.OrganizationGenerator()
+    organization = resources.OrganizationGenerator(identifier="10000004")
     organization_event = Organization(
         identifier=organization.identifier,
         active=organization.active,
@@ -56,7 +56,8 @@ def generate_location(_status: str= "active", _building: str = 'G'):
 if __name__ == '__main__':
     print(generate_organization().json(indent=2))
     print(generate_patient_event().json(indent=2))
-    for practitioner in ['dr', 'nrs', 'apt']:
+    ALLOWED_PRACTITIONERS: tuple[Literal['dr', 'nrs', 'apt', 'lt'], ...] = ('dr', 'nrs', 'apt')
+    for practitioner in ALLOWED_PRACTITIONERS:
         print(generate_practitioner_event(practitioner).json(indent=2))
     for location in ['G', 'R']:
         print(generate_location(location).json(indent=2))

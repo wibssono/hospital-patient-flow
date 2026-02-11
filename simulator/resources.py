@@ -145,7 +145,7 @@ class Identifiers:
         return self.__dict__
 
 class OrganizationGenerator:
-    def __init__ (self, identifier: str = "10000004", active: bool = True):
+    def __init__ (self, identifier: str, active: bool = True):
         self.identifier = self.get_identifier(identifier)
         self.active = active
         self.name = self.get_org_name()
@@ -518,3 +518,7 @@ class PatientGenerator(Identifiers):
 
     def debug_print(self) -> dict[str, str | int]:
         return self.__dict__
+
+class ObservationGenerator:
+    def __init__(self) -> None:
+        pass
