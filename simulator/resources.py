@@ -4,18 +4,21 @@ from fhir.resources.codeableconcept import CodeableConcept
 from fhir.resources.coding import Coding
 from fhir.resources.humanname import HumanName
 from fhir.resources.extension import Extension
-# Organizatoin
-from fhir.resources.organization import Organization
+from fhir.resources.reference import Reference
+from fhir.resources.quantity import Quantity
+from fhir.resources.bundle import BundleEntry
+# Observation
+from fhir.resources.observation import Observation, ObservationComponent
 # Patient
 from fhir.resources.patient import PatientCommunication
 # Practitioner
 from fhir.resources.practitioner import PractitionerQualification
 # Generator Resources
 from faker import Faker
-from datetime import datetime
+from datetime import datetime, date
+from decimal import Decimal
 import random
 import time
-from typing import cast, List, Optional
 
 fake = Faker('id_ID')
 
@@ -520,5 +523,311 @@ class PatientGenerator(Identifiers):
         return self.__dict__
 
 class ObservationGenerator:
-    def __init__(self) -> None:
-        pass
+    @staticmethod
+    def create_coding(code, display) -> CodeableConcept:
+        return CodeableConcept(coding=[Coding(system="http://loinc.org",
+                                              code=code,
+                                              display=display)])
+    
+    @staticmethod
+    def create_category(code: str) -> list[CodeableConcept]:
+        return [CodeableConcept(coding=[Coding(system="http://terminology.hl7.org/CodeSystem/observation-category",
+                                              code=code,
+                                              display=code.title())])]
+
+    @staticmethod
+    def get_code_category(observation: str):
+        code, display, category = None, None, None
+        if observation == "Body Weight":
+            code = "29463-7"
+            display = "Body Weight"
+            category = "vital-sign"
+        elif observation == "Body Height":
+            code = "8302-2"
+            display = "Body Height"
+            category = "vital-sign"
+        elif observation == "Blood Pressure":
+            code = "85354-9" 
+            display = "Blood pressure panel with all children optional"
+            category = "vital-sign"
+        elif observation == "Glucose":
+            code = "2339-0" 
+            display = "Glucose [Mass/volume] in Blood"
+            category = "laboratory"
+        elif observation == "Insulin":
+            code = "20436-2" 
+            display = "Insulin [Mass/volume] in Serum or Plasma"
+            category = "laboratory"
+        elif observation == "Skinfold":
+            code = "8280-0" 
+            display = "Triceps skinfold"
+            category = "exam"
+        else:
+            error = f"{observation} type is not covered in this chart."
+            raise AttributeError (error)
+        return {"code": code, "display": display, "category": category}
+
+    def __init__(self, age: date, gender: str) -> None:
+        self.age = (datetime.now() - datetime.combine(age, datetime.min.time())).days // 365
+        self.gender = gender
+        self.status = random.choice(['normal', 'diabetic'])
+
+    def __call__(self, 
+                 patient_reference: str,
+                 encounter_reference: str,
+                 doctor_reference: str,
+                 nurse_reference: str,
+                 mt_reference: str) -> list[BundleEntry]:
+        self.weight = self.weight_generator()
+        self.height = self.height_generator()
+        self.blood_pressure = self.blood_pressure_generator()
+        self.glucose = self.glucose_generator()
+        self.insulin = self.insulin_generator()
+        self.skin_fold = self.skin_fold_thickness_generator()
+        observation_result = self.observation(patient_reference,
+                                                   encounter_reference,
+                                                   doctor_reference,
+                                                   nurse_reference,
+                                                   mt_reference)
+        return observation_result
+
+    def create_component(self, code: str, display: str):
+        component = []
+        if display == "Body Height":
+            component_value = ObservationComponent(code=self.create_coding(code, display),
+                                                   valueQuantity=Quantity(value=self.height,
+                                                                          unit="cm",
+                                                                          system="http://unitsofmeasure.org",
+                                                                          code="cm"))
+            component.append(component_value)
+        elif display == "Body Weight":
+            component_value = ObservationComponent(code=self.create_coding(code, display),
+                                                   valueQuantity=Quantity(value=self.weight,
+                                                                          unit="Kg",
+                                                                          system="http://unitsofmeasure.org",
+                                                                          code="Kg"))
+        elif display == "Blood pressure panel with all children optional":
+            blood_pressure = self.blood_pressure
+            component_value_systolic = ObservationComponent(code=self.create_coding(code, display),
+                                                   valueQuantity=Quantity(value=blood_pressure["systolic"],
+                                                                          unit="mm[Hg]",
+                                                                          system="http://unitsofmeasure.org",
+                                                                          code="mm[Hg]"))
+            component_value_diastolic = ObservationComponent(code=self.create_coding(code, display),
+                                                   valueQuantity=Quantity(value=blood_pressure["diastolic"],
+                                                                          unit="mm[Hg]",
+                                                                          system="http://unitsofmeasure.org",
+                                                                          code="mm[Hg]"))
+            component.append(component_value_systolic)
+            component.append(component_value_diastolic)
+        elif display == "Glucose [Mass/volume] in Blood":
+            component_value = ObservationComponent(code=self.create_coding(code, display),
+                                                   valueQuantity=Quantity(value=self.glucose,
+                                                                          unit="mg/dL",
+                                                                          system="http://unitsofmeasure.org",
+                                                                          code="mg/dL"))
+            component.append(component_value)
+        elif display == "Insulin [Mass/volume] in Serum or Plasma":
+            component_value = ObservationComponent(code=self.create_coding(code, display),
+                                                   valueQuantity=Quantity(value=self.insulin,
+                                                                          unit="uIU/mL",
+                                                                          system="http://unitsofmeasure.org",
+                                                                          code="uIU/mL"))
+            component.append(component_value)
+        elif display == "Triceps skinfold":
+            component_value = ObservationComponent(code=self.create_coding(code, display),
+                                                   valueQuantity=Quantity(value=self.skin_fold,
+                                                                          unit="mm",
+                                                                          system="http://unitsofmeasure.org",
+                                                                          code="mm"))
+            component.append(component_value)
+        else:
+            error = f"{code} and {display} is not in this chart!"
+            raise AttributeError (error)
+        return component
+
+    def weight_generator(self) -> Decimal:
+        weight_max, weight_min = None, None
+        if self.age < 2:                     
+            weight_min, weight_max = 3.5, 7.5
+        elif self.age < 6:                  
+            weight_min, weight_max = 14, 38
+        elif self.age < 12:                 
+            weight_min, weight_max = 22, 38
+        # Gender‑specific (pubescent and up)
+        if self.gender == 'male':
+            if self.age < 12:             
+                weight_min, weight_max = 45, 58
+            elif self.age < 40:           
+                weight_min, weight_max = 60, 65
+            elif self.age < 71:           
+                weight_min, weight_max = 65, 70
+        elif self.gender == 'female':
+            if self.age < 12:             
+                weight_min, weight_max = 44, 54
+            elif self.age < 40:           
+                weight_min, weight_max = 54, 58
+            elif self.age < 71:           
+                weight_min, weight_max = 58, 64
+        if weight_min is None or weight_max is None:
+            raise AttributeError(f"Weight chart does not cover age {self.age} or gender '{self.gender}'")
+        weight = round(random.uniform(weight_min, weight_max), 2)
+        if self.status == 'diabetic':
+            weight += random.randint(10, 20)
+        return Decimal(str(weight))
+
+    def height_generator(self) -> Decimal:
+        height_min, height_max = None, None
+        if self.age < 2:
+            height_min, height_max = 48, 51
+        elif self.age < 6:
+            height_min, height_max = 85, 96
+        elif self.age < 12:
+            height_min, height_max = 96, 148
+        # Gender‑specific (pubescent and up)
+        if self.gender == 'male':
+            if self.age < 12:
+                height_min, height_max = 150, 165
+            elif self.age < 40:
+                height_min, height_max = 163, 168
+            elif self.age < 71:
+                height_min, height_max = 162, 166
+        elif self.gender == 'female':
+            if self.age < 12:
+                height_min, height_max = 148, 155
+            elif self.age < 40:
+                height_min, height_max = 152, 157
+            elif self.age < 71:
+                height_min, height_max = 151, 155
+        if height_min is None or height_max is None:
+            raise AttributeError(f"Height chart does not cover age {self.age} or gender '{self.gender}'")
+        height = random.randint(height_min, height_max)
+        return Decimal(str(height))
+
+    def blood_pressure_generator(self) -> dict[str, Decimal]:
+        sys_min, dia_min = None, None
+        if self.age < 6:  
+            sys_min, dia_min = 80, 55
+            sys_max, dia_max = 110, 79
+        elif self.age < 14: 
+            sys_min, dia_min = 90, 60
+            sys_max, dia_max = 115, 80
+        elif self.age < 20: 
+            sys_min, dia_min = 105, 73
+            sys_max, dia_max = 120, 81
+        elif self.age < 25: 
+            sys_min, dia_min = 108, 75
+            sys_max, dia_max = 132, 83
+        elif self.age < 30: 
+            sys_min, dia_min = 109, 76
+            sys_max, dia_max = 133, 84
+        elif self.age < 35: 
+            sys_min, dia_min = 110, 77
+            sys_max, dia_max = 134, 85
+        elif self.age < 40:
+            sys_min, dia_min = 111, 78
+            sys_max, dia_max = 135, 86
+        elif self.age < 45:
+            sys_min, dia_min = 112, 79
+            sys_max, dia_max = 137, 87
+        elif self.age < 50:
+            sys_min, dia_min = 115, 80
+            sys_max, dia_max = 139, 88
+        elif self.age < 55:
+            sys_min, dia_min = 116, 81
+            sys_max, dia_max = 142, 89
+        elif self.age < 60:
+            sys_min, dia_min = 118, 82
+            sys_max, dia_max = 144, 90
+        elif self.age < 71:
+            sys_min, dia_min = 121, 83
+            sys_max, dia_max = 147, 91
+        else:
+            raise AttributeError(f"Blood pressure chart does not cover age {self.age}")
+        systolic = random.randint(sys_min, sys_max)
+        diastolic = random.randint(dia_min, dia_max)
+        if self.status == 'diabetic':
+            systolic += random.randint(5, 15)
+            diastolic += random.randint(3, 10)
+        return {"systolic": Decimal(str(systolic)), "diastolic": Decimal(str(diastolic))}
+
+    def glucose_generator(self) -> Decimal:
+        glucose_value = random.randint(70, 99)
+        if self.status == "diabetic":
+            glucose_value += random.randint(1, 25)
+            if random.randint(1, 100) <= 50:
+                glucose_value += random.randint(1, 10)
+        glucose = Decimal(str(glucose_value))
+        return glucose
+
+    def insulin_generator(self) -> Decimal:
+        insulin_value = random.uniform(2, 5)
+        if self.status == "diabetic":
+            insulin_value += random.uniform(1, 9)
+            if random.randint(1, 100) <= 50:
+                insulin_value += random.uniform(1, 10)
+        insulin = Decimal(str(round(insulin_value, 2)))
+        return insulin
+
+    def skin_fold_thickness_generator(self) -> Decimal:
+        thickness_max, thickness_min = None, None
+        if self.age < 3:
+            if self.gender == 'male':
+                thickness_min, thickness_max = 8, 12
+            elif self.gender == 'female':
+                thickness_min, thickness_max = 8, 12
+        elif self.age < 12:
+            if self.gender == 'male':
+                thickness_min, thickness_max = 8, 12
+            elif self.gender == 'female':
+                thickness_min, thickness_max = 10, 15
+        elif self.age < 18:
+            if self.gender == 'male':
+                thickness_min, thickness_max = 8, 14
+            elif self.gender == 'female':
+                thickness_min, thickness_max = 14, 20
+        elif self.age < 40:
+            if self.gender == 'male':
+                thickness_min, thickness_max = 10, 15
+            elif self.gender == 'female':
+                thickness_min, thickness_max = 16, 22
+        elif self.age < 71:
+            if self.gender == 'male':
+                thickness_min, thickness_max = 12, 18
+            elif self.gender == 'female':
+                thickness_min, thickness_max = 20, 26
+        if thickness_min is None or thickness_max is None:
+            error = f"Skin fold thickness chart does not cover age {self.age} or gender '{self.gender}'"
+            raise AttributeError(error)
+        thickness = round(random.uniform(thickness_min, thickness_max), 1)
+        # If Diabetic
+        if self.status == 'diabetic':
+            if self.gender == 'male':
+                thickness = random.uniform(20, 25)
+            elif self.gender == 'female':
+                thickness = random.uniform(30, 35)
+            thickness = round(thickness, 1)
+        return Decimal(str(thickness))
+
+    def observation(self, patient, encounter, doctor, nurse, mt) -> list[BundleEntry]:
+        observation = []
+        def observe_gen(_patient, _encounter, _performer, _observation) -> BundleEntry:
+            data = self.get_code_category(_observation)          
+            code, display, category = data["code"], data["display"], data["category"]
+            weight_obs = Observation(
+                status='final',
+                category=self.create_category(category),
+                code=self.create_coding(code, display),
+                subject=Reference(reference=_patient),
+                encounter=Reference(reference=_encounter),
+                performer=[Reference(reference=_performer)],
+                component=self.create_component(code, display)
+            )
+            return BundleEntry(resource=weight_obs, request={"method": "POST", "url": "Observation"})
+        observation.append(observe_gen(patient, encounter, nurse, "Body Weight"))
+        observation.append(observe_gen(patient, encounter, nurse, "Body Height"))
+        observation.append(observe_gen(patient, encounter, nurse, "Blood Pressure"))
+        observation.append(observe_gen(patient, encounter, mt, "Glucose"))
+        observation.append(observe_gen(patient, encounter, mt, "Insulin"))
+        observation.append(observe_gen(patient, encounter, doctor, "Skinfold"))
+        return observation
