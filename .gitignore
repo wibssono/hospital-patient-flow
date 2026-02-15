@@ -1,9 +1,12 @@
-config/settings.env
-test_codes.ipynb
 *.log
 *.tmp
 .venv/
 requirements.in
+
+# Project Specifics
+config/settings.env
+hospital_data/
+hospital_data.ext
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -12,6 +15,7 @@ __pycache__/
 # For notes
 notes/
 notes.ext
+test_codes.ipynb
 
 .ipynb_checkpoints
 */.ipynb_checkpoints/*

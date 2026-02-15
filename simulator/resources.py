@@ -40,7 +40,7 @@ class Identifiers:
     """
     Docstring for Identifiers
     """
-    def __init__ (self):
+    def __init__ (self) -> None:
         self.gender = self.get_gender()
         self.birth_date = fake.date_of_birth(maximum_age = 70)
         self.identifier = self.get_identifier()
@@ -270,8 +270,9 @@ class OrganizationGenerator:
         return contact
 
 class LocationGenerator:
-    def __init__(self, building: str) -> None:
+    def __init__(self, building: str, name: str) -> None:
         self.building = building
+        self.name = name
         self.id = self.get_id()
         self.name = self.get_name() 
         self.form = self.get_form()
@@ -279,11 +280,10 @@ class LocationGenerator:
 
     def get_id(self) -> str:
         id = ''
-        letter = ''.join(random.choices('ABCDEFGHIJKLMNOPQRSTUVWXYZ', k=1))
-        if self.building == 'G':
-            id = f"LOK-GEDUNG-{letter}"
+        if self.building == 'B':
+            id = f"LOK-GEDUNG-{self.name}"
         elif self.building == 'R':
-            id = f"LOK-RUANG-{letter}"
+            id = f"LOK-RUANG-{self.name}"
         return id
 
     def get_name(self) -> str:
@@ -295,7 +295,7 @@ class LocationGenerator:
         if self.building:
             _code = ''
             _display = ''
-            if self.building == 'G':
+            if self.building == 'B':
                 _code = "bd"
                 _display = "Building"
             elif self.building == 'R':
@@ -321,7 +321,7 @@ class LocationGenerator:
                     coding=[Coding(
                         system="http://terminology.kemkes.go.id/CodeSystem/location-serviceClass",
                         code=_code,
-                        display=_display
+                        display=_display,
                     )]
                 )
             )
@@ -354,7 +354,7 @@ class PracticionerGenerator(Identifiers):
             if practitioner == 'lt':
                 identifier_dict = {
                     "system": "http://sys-ids.kemkes.go.id/qualification/str",
-                    "value": str(random.randint(100000000000000, 99999999999999))
+                    "value": str(random.randint(100000000000000, 999999999999999))
                     }
             return identifier_dict
         
@@ -405,10 +405,11 @@ class PracticionerGenerator(Identifiers):
     def get_id(self) -> str:
         return f'PRAC-{random.randint(1000000, 9999999)}'
     
-    def get_qualification(self, practitioner: str) -> PractitionerQualification:
+    def get_qualification(self, practitioner: str) -> list[PractitionerQualification]:
         identify = self.Qualification()
         identifier = identify.get_identifier(practitioner)
         code = identify.get_code(practitioner)
+        qualification = []
         # Build Identifier
         identifier = {
             "use": "official",
@@ -424,10 +425,11 @@ class PracticionerGenerator(Identifiers):
             )]
         )
         # Build Qualification
-        qualification = PractitionerQualification(
+        _qualification = PractitionerQualification(
             identifier=[identifier],
             code=codeable_concept
         )
+        qualification.append(_qualification)
         return qualification
 
     def get_name(self, practitioner: str) -> list[HumanName]:
@@ -444,18 +446,15 @@ class PracticionerGenerator(Identifiers):
             _name = f'{first_name} {last_name}'
         # Generate Suffix
         if practitioner == 'dr':
-            suffix = 'Dr.'
-            _name = f'{suffix} {_name}'         
+            _name = f'Dr. {_name}, S.Ked.'         
         elif practitioner == 'nrs':
-            suffix = random.choice(['S.Kep'])
-            _name = f'{suffix}'
+            _name = f'Ns. {_name}, S.Kep.'
         elif practitioner == 'apt':
-            suffix_front = 'Apt.'
-            suffix_back = random.choice(['S.Farm.M.Farm.', 'S.Farm.'])
-            _name = f'{suffix_front} {_name} {suffix_back}'
+            suffix_back = random.choice(['S.Farm., M.Farm.', 'S.Farm.'])
+            _name = f'apt. {_name}, {suffix_back}'
         elif practitioner == 'lt':
             suffix_back = random.choice(['A.Md.Kes', 'S.Keb.'])
-            _name = f'{_name} {suffix_back}'
+            _name = f'{_name}, {suffix_back}'
         name = HumanName(
             use="official",
             text=_name
