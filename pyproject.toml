@@ -9,6 +9,8 @@ dependencies = [
     "fastapi[standard]>=0.128.0",
     "fhir-resources>=8.1.0",
     "ipykernel>=7.2.0",
+    "jsonlines>=4.0.0",
+    "pandas>=3.0.0",
     "pydantic>=2.12.5",
     "python-dotenv==1.2.1",
 ]

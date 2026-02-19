@@ -390,7 +390,7 @@ class PracticionerGenerator(Identifiers):
 
     def __init__ (self, practitioner: str):
         super().__init__()
-        self.id = self.get_id()
+        self.id = self.get_id(practitioner)
         self.birth_date = fake.date_of_birth(minimum_age=25, maximum_age=70)
         self.qualification = self.get_qualification(practitioner)
         self.name = self.get_name(practitioner)
@@ -402,8 +402,20 @@ class PracticionerGenerator(Identifiers):
         ihs = ihs_front + ihs_back
         return ihs
 
-    def get_id(self) -> str:
-        return f'PRAC-{random.randint(1000000, 9999999)}'
+    def get_id(self, practitioner) -> str:
+        practitioner_id = None
+        if practitioner == 'dr':
+            practitioner_id = f'DOC-{random.randint(1000000, 9999999)}'
+        elif practitioner == 'nrs':
+            practitioner_id = f'NRS-{random.randint(1000000, 9999999)}'
+        elif practitioner == 'apt':
+            practitioner_id = f'APT-{random.randint(1000000, 9999999)}'
+        elif practitioner == 'lt':
+            practitioner_id = f'LT-{random.randint(1000000, 9999999)}'
+        else:
+            error = f"{practitioner} is not in the scope of this chart!"
+            raise AttributeError (error)
+        return practitioner_id
     
     def get_qualification(self, practitioner: str) -> list[PractitionerQualification]:
         identify = self.Qualification()

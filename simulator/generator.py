@@ -1,12 +1,15 @@
+import time
 import json
+import jsonlines
+import pickle
+import tempfile
 import resources
 import random
-from datetime import date
+import tempfile
 from typing import Literal
 from pydantic import Field
 from faker import Faker
 
-from fhir.resources.patient import Patient
 from fhir.resources.practitioner import Practitioner
 from fhir.resources.practitionerrole import PractitionerRole
 from fhir.resources.organization import Organization
@@ -89,6 +92,88 @@ fake = Faker('id_ID')
 #             )
 #         return bundle
 
+class Cache:
+    def __init__(self,temp_path: str,
+                 data_path: str,
+                 unique_buiding: list[str]):
+        self.temp_path = Path(temp_path)
+        self.data_path = Path(data_path)
+        self.buildings = unique_buiding
+        self.requirements = ['dr', 'nrs', 'apt', 'lt']
+        self.open_file = {}
+        self._create_role_cache()
+    
+    @staticmethod
+    def get_prac_id(practitioner):
+        if practitioner == 'dr':
+            prac_id = 'DOC'
+        elif practitioner == 'nrs':
+            prac_id = 'NRS'
+        elif practitioner == 'apt':
+            prac_id = 'APT'
+        elif practitioner == 'lt':
+            prac_id = 'LT'
+        else:
+            error = f'{practitioner} is not within the scope!'
+            raise ValueError (error)
+        return prac_id
+
+    def _create_practitioner_cache(self):
+        for building in self.buildings:
+            practitioners = {}
+            role_id = []
+            # Making a list of role IDs
+            role_cache_path = self.temp_path / building / 'role.ndjson'
+            if role_cache_path.exists():
+                with open(role_cache_path, 'r') as file:
+                    role_id = [json.loads(line)["practitioner"]["reference"][13:] for line in file]
+            # Making Dicitonary
+            practitioner_json_path = self.data_path / 'practitioner.ndjson'
+            for practitioner in self.requirements:
+                practitioner_list = []
+                id_start = self.get_prac_id(practitioner)
+                with jsonlines.open(practitioner_json_path) as reader:
+                    for row in reader:
+                        if row["id"] in role_id and row["id"].startswith(id_start):
+                            practitioner_list.append(row)
+                practitioners.update({practitioner: practitioner_list})
+            # Making Pickle file
+            practitioner_cache_path = self.temp_path / building / 'practitioner.pkl'
+            with open(practitioner_cache_path, 'wb') as file:
+                pickle.dump(practitioners, file)
+
+    def _create_role_cache(self):
+        try:
+            for building in self.buildings:
+                building_dir_path = self.temp_path / building
+                if not building_dir_path.exists():
+                    building_dir_path.mkdir(parents=True, exist_ok=True)
+            role_json_path = self.data_path / 'practitioner_role.ndjson'
+            with open(role_json_path, 'r') as file:
+                for line in file:
+                    role_building = json.loads(line)['location'][0]['display']
+                    building_index = self.buildings.index(role_building)
+                    role_cache = str(self.temp_path / self.buildings[building_index] / 'roles.ndjson')
+                    if not role_cache in self.open_file:
+                        self.open_file[role_cache] = open(role_cache, 'a')
+                    if role_cache in self.open_file:
+                        self.open_file[role_cache].write(line)
+            for file in self.open_file.values():
+                if not file.closed:
+                    file.close()
+        except FileNotFoundError:
+            print(f"Directory for {self.temp_path} doesn't exist")
+        except PermissionError:
+            print(f"No write permission!")
+        except TypeError as e:
+            print(f"Serialization error: {e}")
+        except OSError as e:
+            print(f"OS error: {e}")
+        finally:
+            self.open_file.clear()
+            self._create_practitioner_cache()
+
+
 class GenerateHL7:
     @staticmethod
     def path_req_check(requirements: list, path: Path):
@@ -108,8 +193,10 @@ class GenerateHL7:
                     resource.touch()
             except (PermissionError, OSError) as e:
                 print(f"Cannot create resource {resource}: {e}")
+                return
             except AttributeError:
                 print(f"Item {i} in requirements is not a valid Path object")
+                return
 
     @staticmethod
     def write_to_ndjson(path: Path, data: str):
@@ -138,6 +225,7 @@ class GenerateHL7:
                  path: str = 'hospital_data'
                  ):
         self.path = path
+        self.requirements = ['dr', 'nrs', 'apt', 'lt']
         self.range_building = range_building
         self.range_room = range_room
         self.range_doctor = range_doctor
@@ -145,28 +233,24 @@ class GenerateHL7:
         self.range_apt = range_apt
         self.range_lt = range_lt
 
+    # -- required function to call --
     def initial_hospital_data(self):
         path = Path(self.path)
         organization_path = path / "organization.ndjson"
         building_path = path / "building.ndjson"
         room_path = path / "rooms.ndjson"
-        practitioner_path_dr = path / "practitioner_dr.ndjson"
-        practitioner_path_nrs = path / "practitioner_nrs.ndjson"
-        practitioner_path_apt = path / "practitioner_apt.ndjson"
-        practitioner_path_lt = path / "practitioner_lt.ndjson"
+        practitioner_path = path / "practitioner.ndjson"
         practitioner_role_path = path / "practitioner_role.ndjson"
         requirements = [organization_path,
                         building_path,
-                        practitioner_path_dr, 
-                        practitioner_path_nrs,
-                        practitioner_path_apt,
-                        practitioner_path_lt
+                        practitioner_path,
+                        practitioner_role_path
                         ]
         # Making Paths and json 
         self.path_req_check(requirements, path)
         self.write_organization_data(organization_path)
         self.write_location_data(building_path, room_path)
-        self.write_practitioner_data(requirements[2:], practitioner_role_path)
+        self.write_practitioner_data(practitioner_path, practitioner_role_path)
 
     def write_organization_data(self, organization_path):
         org_identifier = str(random.randint(1000000, 9999999))
@@ -180,7 +264,7 @@ class GenerateHL7:
             contact=self.organization.contact
         )
         self.write_to_ndjson(organization_path,
-                             organization_event.json(indent=2))
+                             organization_event.json())
 
     @staticmethod
     def get_building(_range: int) -> list[str]:
@@ -212,7 +296,7 @@ class GenerateHL7:
                 extension=loc_building.extension
             )
             self.write_to_ndjson(location_path,
-                                 building_event.json(indent=2))
+                                 building_event.json())
         for building, rooms in rooms.items():
             for room in rooms:
                 loc_room = resources.LocationGenerator('R', room)
@@ -225,7 +309,7 @@ class GenerateHL7:
                     partOf={"reference": f"Location/LOK-GEDUNG-{building}"}
                 )
                 self.write_to_ndjson(room_path,
-                                     room_event.json(indent=2))
+                                     room_event.json())
 
     def get_practitioner_range(self, practitioner: str):
         _range = None
@@ -243,34 +327,47 @@ class GenerateHL7:
         return _range
 
     def write_practitioner_data(self,
-                                practitioner_paths: list[Path],
+                                practitioner_path: Path,
                                 practitioner_role_path: Path):
-        practitioners = ['dr', 'nrs', 'apt', 'lt']
         for building in range(self.range_building):
-            for index, path in enumerate(practitioner_paths):
-                practitioner_range = self.get_practitioner_range(practitioners[index])
+            for practitioner in self.requirements:
+                practitioner_range = self.get_practitioner_range(practitioner)
                 for _ in range(practitioner_range):
                     # Making Practitioners
-                    practitioner = resources.PracticionerGenerator(practitioners[index])
+                    practitioner_gen = resources.PracticionerGenerator(practitioner)
                     practitioner_event = Practitioner(
-                        id = practitioner.id,
-                        name = practitioner.name,
-                        qualification = practitioner.qualification,
-                        gender= practitioner.gender,
-                        birthDate= practitioner.birth_date
+                        id = practitioner_gen.id,
+                        name = practitioner_gen.name,
+                        qualification = practitioner_gen.qualification,
+                        gender= practitioner_gen.gender,
+                        birthDate= practitioner_gen.birth_date
                     )
-                    self.write_to_ndjson(path,
-                                        practitioner_event.json(indent=2))
+                    self.write_to_ndjson(practitioner_path,
+                                        practitioner_event.json())
                     # Making Practitioner Roles
                     _building = chr(65 + building)
                     _location_dict = {"reference": f"Location/LOK-GED-{_building}",
                                         "display": f"Gedung {_building}"}
-                    _practitioner_dict = {"reference": f"Practitioner/{practitioner.id}",
-                                        "display": practitioner.name}
+                    _practitioner_dict = {"reference": f"Practitioner/{practitioner_gen.id}",
+                                        "display": practitioner_gen.name[0].text}
                     practitioner_role_event = PractitionerRole(practitioner=_practitioner_dict,
-                                                              location=[_location_dict])
+                                                                location=[_location_dict])
                     self.write_to_ndjson(practitioner_role_path,
-                                         practitioner_role_event.json(indent=2))
+                                            practitioner_role_event.json())
+
+    def bundle_data(self):
+        try:
+            with tempfile.TemporaryDirectory() as temp_dir:
+                buildings = self.get_building(self.range_building)
+                building_names = [ 'Gedung ' + buildings[i] for i in range(len(buildings))]
+                data = Cache(temp_dir, self.path, building_names)
+                print("Cache made sucessfully!")
+                while True:
+                    time.sleep(1)
+        except KeyboardInterrupt:
+            print("\nDeleting cache folder...")
+        finally:
+            print("\nRuntime finished")
 
 if __name__ == '__main__':
     generate = GenerateHL7(range_building=2,
@@ -279,4 +376,5 @@ if __name__ == '__main__':
                            range_nurse=4,
                            range_apt=2,
                            range_lt=1)
-    generate.initial_hospital_data()
+    # generate.initial_hospital_data()
+    generate.bundle_data()
