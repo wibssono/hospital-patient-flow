@@ -10,6 +10,7 @@ from typing import Literal
 from pydantic import Field
 from faker import Faker
 
+from fhir.resources.patient import Patient
 from fhir.resources.practitioner import Practitioner
 from fhir.resources.practitionerrole import PractitionerRole
 from fhir.resources.organization import Organization
@@ -118,29 +119,61 @@ class Cache:
             raise ValueError (error)
         return prac_id
 
+    def _create_room_cache(self):
+        try:
+            for building in self.buildings:
+                # Making Dicitonary
+                room_json_path = self.data_path / 'rooms.ndjson'
+                room_cache_path = self.temp_path / building / 'rooms.ndjson'
+                with open(room_cache_path, 'a') as file:
+                    with jsonlines.open(room_json_path) as reader:
+                        for row in reader:
+                            room_in_building = row['partOf']['reference'][-8:].replace('-', ' ').title()
+                            if room_in_building == building:
+                                file.write(str(row) + '\n')
+        except FileNotFoundError:
+            print(f"Directory for {self.temp_path} doesn't exist")
+        except PermissionError:
+            print(f"No write permission!")
+        except TypeError as e:
+            print(f"Serialization error: {e}")
+        except OSError as e:
+            print(f"OS error: {e}")
+
     def _create_practitioner_cache(self):
-        for building in self.buildings:
-            practitioners = {}
-            role_id = []
-            # Making a list of role IDs
-            role_cache_path = self.temp_path / building / 'role.ndjson'
-            if role_cache_path.exists():
-                with open(role_cache_path, 'r') as file:
-                    role_id = [json.loads(line)["practitioner"]["reference"][13:] for line in file]
-            # Making Dicitonary
-            practitioner_json_path = self.data_path / 'practitioner.ndjson'
-            for practitioner in self.requirements:
-                practitioner_list = []
-                id_start = self.get_prac_id(practitioner)
-                with jsonlines.open(practitioner_json_path) as reader:
-                    for row in reader:
-                        if row["id"] in role_id and row["id"].startswith(id_start):
-                            practitioner_list.append(row)
-                practitioners.update({practitioner: practitioner_list})
-            # Making Pickle file
-            practitioner_cache_path = self.temp_path / building / 'practitioner.pkl'
-            with open(practitioner_cache_path, 'wb') as file:
-                pickle.dump(practitioners, file)
+        try:
+            for building in self.buildings:
+                practitioners = {}
+                role_id = []
+                # Making a list of role IDs
+                role_cache_path = self.temp_path / building / 'role.ndjson'
+                if role_cache_path.exists():
+                    with open(role_cache_path, 'r') as file:
+                        role_id = [json.loads(line)["practitioner"]["reference"][13:] for line in file]
+                # Making Dicitonary
+                practitioner_json_path = self.data_path / 'practitioner.ndjson'
+                for practitioner in self.requirements:
+                    practitioner_list = []
+                    id_start = self.get_prac_id(practitioner)
+                    with jsonlines.open(practitioner_json_path) as reader:
+                        for row in reader:
+                            if row["id"] in role_id and row["id"].startswith(id_start):
+                                practitioner_list.append(row)
+                    practitioners.update({practitioner: practitioner_list})
+                # Making Pickle file
+                practitioner_cache_path = self.temp_path / building / 'practitioner.pkl'
+                with open(practitioner_cache_path, 'wb') as file:
+                    pickle.dump(practitioners, file)
+        except FileNotFoundError:
+            print(f"Directory for {self.temp_path} doesn't exist")
+        except PermissionError:
+            print(f"No write permission!")
+        except TypeError as e:
+            print(f"Serialization error: {e}")
+        except OSError as e:
+            print(f"OS error: {e}")
+        finally:
+            self._create_room_cache()
 
     def _create_role_cache(self):
         try:
@@ -172,7 +205,6 @@ class Cache:
         finally:
             self.open_file.clear()
             self._create_practitioner_cache()
-
 
 class GenerateHL7:
     @staticmethod
@@ -355,14 +387,29 @@ class GenerateHL7:
                     self.write_to_ndjson(practitioner_role_path,
                                             practitioner_role_event.json())
 
-    def bundle_data(self):
+    def get_patient(self, patient):
+        patient_event = Patient(
+            id = patient.id,
+            name = patient.name,
+            gender = patient.gender,
+            birthDate = patient.birth_date,
+            multipleBirthInteger = patient.multiple_birth,
+            link = patient.patient_link
+        )
+        return patient_event
+
+    def bundle_data(self, building_event):
         try:
             with tempfile.TemporaryDirectory() as temp_dir:
+                # Calling for chace making function
                 buildings = self.get_building(self.range_building)
                 building_names = [ 'Gedung ' + buildings[i] for i in range(len(buildings))]
                 data = Cache(temp_dir, self.path, building_names)
                 print("Cache made sucessfully!")
+                # Creating Bundle
                 while True:
+                    patient = resources.PatientGenerator()
+                    patient_event = self.get_patient(patient)
                     time.sleep(1)
         except KeyboardInterrupt:
             print("\nDeleting cache folder...")
@@ -370,11 +417,26 @@ class GenerateHL7:
             print("\nRuntime finished")
 
 if __name__ == '__main__':
-    generate = GenerateHL7(range_building=2,
-                           range_room=4,
-                           range_doctor=2,
-                           range_nurse=4,
-                           range_apt=2,
-                           range_lt=1)
-    # generate.initial_hospital_data()
-    generate.bundle_data()
+    # generate = GenerateHL7(range_building=2,
+    #                        range_room=4,
+    #                        range_doctor=2,
+    #                        range_nurse=4,
+    #                        range_apt=2,
+    #                        range_lt=1)
+    # # generate.initial_hospital_data()
+    # generate.bundle_data()
+    
+    def generate_patient_event() -> Patient:
+        patient = resources.PatientGenerator()
+        patient_event = Patient(
+            id = patient.id,
+            name = patient.name,
+            gender = patient.gender,
+            birthDate = patient.birth_date,
+            multipleBirthInteger = patient.multiple_birth,
+            link = patient.patient_link
+        )
+        return patient_event
+    
+    for _ in range(5):
+        print(json.loads(generate_patient_event().json())["id"])

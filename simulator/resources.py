@@ -13,6 +13,8 @@ from fhir.resources.observation import Observation, ObservationComponent
 from fhir.resources.patient import PatientCommunication
 # Practitioner
 from fhir.resources.practitioner import PractitionerQualification
+# Encounter
+from fhir.resources.encounter import Encounter, EncounterParticipant
 # Generator Resources
 from faker import Faker
 from datetime import datetime, date
@@ -487,12 +489,11 @@ class PatientGenerator(Identifiers):
     def get_id(self) -> str:
         curr_itter_id = self.itter_id
         curr_date = datetime.now()
-        
+        # Id based on month|day|hour|itteration
         month = str(curr_date.month).zfill(2) 
         day = str(curr_date.day).zfill(2)
         hour = str(curr_date.hour).zfill(2)
         patient_id = str(curr_itter_id).zfill(3)
-
         return f'PAT-{month}{day}{hour}{patient_id}'
 
     def get_name(self) -> list[HumanName]:
@@ -532,6 +533,41 @@ class PatientGenerator(Identifiers):
 
     def debug_print(self) -> dict[str, str | int]:
         return self.__dict__
+
+class EncounterGenerator:
+    id_itter_gen = IdIteration.iteration_gen()
+
+    def __init__(self,
+                 subject: dict,
+                 practitioner: list[dict],
+                 provider: dict,
+                 location: dict,
+                 ) -> None:
+        self.subject = subject
+        self.practitioner = practitioner
+        self.provider = provider
+        self.location = location
+
+    def get_encounter_participant(self,
+                                  _reference: dict | None = None,
+                                  display: str | None = None,
+                                  id: str | None = None):
+        if display and id:
+            reference = Reference(reference=f"Patient/{id}",
+                                  display=display)
+        elif _reference:
+            reference = _reference
+        else:
+            error = f"{_reference}, {display}, {id}, can not be referenced!"
+            raise AttributeError (error)
+        return EncounterParticipant(
+            actor=reference
+        )
+    
+    def generate_encounter(self):
+        encounters = []
+        
+        return
 
 class ObservationGenerator:
     @staticmethod
