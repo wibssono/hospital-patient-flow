@@ -119,18 +119,24 @@ class Cache:
             raise ValueError (error)
         return prac_id
 
+    @staticmethod
+    def read_json_lines(file_path, building):
+        with jsonlines.open(file_path, mode='r') as reader:
+            for row in reader:
+                yield row
+
     def _create_room_cache(self):
         try:
             for building in self.buildings:
                 # Making Dicitonary
                 room_json_path = self.data_path / 'rooms.ndjson'
                 room_cache_path = self.temp_path / building / 'rooms.ndjson'
-                with open(room_cache_path, 'a') as file:
+                with jsonlines.open(room_cache_path, mode='a') as writer:
                     with jsonlines.open(room_json_path) as reader:
                         for row in reader:
                             room_in_building = row['partOf']['reference'][-8:].replace('-', ' ').title()
                             if room_in_building == building:
-                                file.write(str(row) + '\n')
+                                writer.write(str(row))
         except FileNotFoundError:
             print(f"Directory for {self.temp_path} doesn't exist")
         except PermissionError:
@@ -146,7 +152,7 @@ class Cache:
                 practitioners = {}
                 role_id = []
                 # Making a list of role IDs
-                role_cache_path = self.temp_path / building / 'role.ndjson'
+                role_cache_path = self.temp_path / building / 'roles.ndjson'
                 if role_cache_path.exists():
                     with open(role_cache_path, 'r') as file:
                         role_id = [json.loads(line)["practitioner"]["reference"][13:] for line in file]
@@ -182,18 +188,26 @@ class Cache:
                 if not building_dir_path.exists():
                     building_dir_path.mkdir(parents=True, exist_ok=True)
             role_json_path = self.data_path / 'practitioner_role.ndjson'
-            with open(role_json_path, 'r') as file:
-                for line in file:
-                    role_building = json.loads(line)['location'][0]['display']
+    # TBDeleted with open(role_json_path, 'r') as file:
+    # TBDeleted     for line in file:
+    # TBDeleted         role_building = json.loads(line)['location'][0]['display']
+    # TBDeleted         building_index = self.buildings.index(role_building)
+    # TBDeleted         role_cache = str(self.temp_path / self.buildings[building_index] / 'roles.ndjson')
+    # TBDeleted         if not role_cache in self.open_file:
+    # TBDeleted             self.open_file[role_cache] = jsonlines.open(role_cache, 'a')
+    # TBDeleted         if role_cache in self.open_file:
+    # TBDeleted             self.open_file[role_cache].write(line)
+            with jsonlines.open(role_json_path, mode='r') as reader:
+                x, y, z = 0, 0, 0
+                for row in reader:
+                    role_building = row['location'][0]['display']
                     building_index = self.buildings.index(role_building)
                     role_cache = str(self.temp_path / self.buildings[building_index] / 'roles.ndjson')
                     if not role_cache in self.open_file:
-                        self.open_file[role_cache] = open(role_cache, 'a')
-                    if role_cache in self.open_file:
-                        self.open_file[role_cache].write(line)
+                        self.open_file[role_cache] = jsonlines.open(role_cache, 'a')
+                    self.open_file[role_cache].write(row)
             for file in self.open_file.values():
-                if not file.closed:
-                    file.close()
+                file.close()
         except FileNotFoundError:
             print(f"Directory for {self.temp_path} doesn't exist")
         except PermissionError:
@@ -407,36 +421,59 @@ class GenerateHL7:
                 data = Cache(temp_dir, self.path, building_names)
                 print("Cache made sucessfully!")
                 # Creating Bundle
+                i = 0
                 while True:
+                    temp_path = Path(temp_dir) / building_event
+                    if i == 0:
+                        # Getting practitioners
+                        practitioners_path = temp_path / 'practitioner.pkl'
+                        with open(practitioners_path, 'rb') as file:
+                            practitioner_dict = pickle.load(file)
+                            dr_list, nrs_list, apt_list, lt_list = [], [], [], []
+                            for key, value in practitioner_dict.items():
+                                if key == 'dr':
+                                    dr_list = value
+                                elif key == 'nrs':
+                                    nrs_list = value
+                                elif key == 'apt':
+                                    apt_list = value
+                                elif key == 'lt':
+                                    lt_list = value
+                                else:
+                                    error = f'Key {key} cannot be listed!'
+                                    raise AttributeError (error)
+                            print(random.choice(dr_list))
+                            print(random.choice(nrs_list))
+                            print(random.choice(apt_list))
+                            print(random.choice(lt_list))
+                        # Getting rooms
+                        rooms_path = temp_path / 'rooms.ndjson'
+                        with jsonlines.open(rooms_path, mode='r') as reader:
+                            rooms_list = list(reader)
+                            print(random.choice(rooms_list))
+                        # Getting roles
+                        roles_path = temp_path / 'roles.ndjson'
+                        with jsonlines.open(roles_path, mode='r') as reader:
+                            for row in reader:
+                                idx = row['practitioner']['reference'].index("/") 
+                                print(row['practitioner']['reference'][idx+1:])
+                        i +=1
                     patient = resources.PatientGenerator()
                     patient_event = self.get_patient(patient)
                     time.sleep(1)
         except KeyboardInterrupt:
             print("\nDeleting cache folder...")
+        except Exception as e:
+            print(f"Error has occured: {e}")
         finally:
             print("\nRuntime finished")
 
 if __name__ == '__main__':
-    # generate = GenerateHL7(range_building=2,
-    #                        range_room=4,
-    #                        range_doctor=2,
-    #                        range_nurse=4,
-    #                        range_apt=2,
-    #                        range_lt=1)
-    # # generate.initial_hospital_data()
-    # generate.bundle_data()
-    
-    def generate_patient_event() -> Patient:
-        patient = resources.PatientGenerator()
-        patient_event = Patient(
-            id = patient.id,
-            name = patient.name,
-            gender = patient.gender,
-            birthDate = patient.birth_date,
-            multipleBirthInteger = patient.multiple_birth,
-            link = patient.patient_link
-        )
-        return patient_event
-    
-    for _ in range(5):
-        print(json.loads(generate_patient_event().json())["id"])
+    generate = GenerateHL7(range_building=2,
+                           range_room=4,
+                           range_doctor=2,
+                           range_nurse=4,
+                           range_apt=2,
+                           range_lt=1)
+    generate.initial_hospital_data()
+    generate.bundle_data('Gedung A')
