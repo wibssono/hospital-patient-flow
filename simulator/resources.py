@@ -543,11 +543,23 @@ class EncounterGenerator:
                  provider: dict,
                  location: dict,
                  ) -> None:
+        self.itter_id = next(self.id_itter_gen)
+        self.id = self.get_id()
         self.subject = subject
         self.practitioner = practitioner
         self.provider = provider
         self.location = location
 
+    def get_id(self) -> str:
+        curr_itter_id = self.itter_id
+        curr_date = datetime.now()
+        # Id based on month|day|hour|itteration
+        month = str(curr_date.month).zfill(2) 
+        day = str(curr_date.day).zfill(2)
+        hour = str(curr_date.hour).zfill(2)
+        encounter_id = str(curr_itter_id).zfill(3)
+        return f'ENCOUNTER-{month}{day}{hour}{encounter_id}'
+        
     def get_encounter_participant(self,
                                   _reference: dict | None = None,
                                   display: str | None = None,

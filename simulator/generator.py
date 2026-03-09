@@ -136,7 +136,7 @@ class Cache:
                         for row in reader:
                             room_in_building = row['partOf']['reference'][-8:].replace('-', ' ').title()
                             if room_in_building == building:
-                                writer.write(str(row))
+                                writer.write(row)
         except FileNotFoundError:
             print(f"Directory for {self.temp_path} doesn't exist")
         except PermissionError:
@@ -188,17 +188,7 @@ class Cache:
                 if not building_dir_path.exists():
                     building_dir_path.mkdir(parents=True, exist_ok=True)
             role_json_path = self.data_path / 'practitioner_role.ndjson'
-    # TBDeleted with open(role_json_path, 'r') as file:
-    # TBDeleted     for line in file:
-    # TBDeleted         role_building = json.loads(line)['location'][0]['display']
-    # TBDeleted         building_index = self.buildings.index(role_building)
-    # TBDeleted         role_cache = str(self.temp_path / self.buildings[building_index] / 'roles.ndjson')
-    # TBDeleted         if not role_cache in self.open_file:
-    # TBDeleted             self.open_file[role_cache] = jsonlines.open(role_cache, 'a')
-    # TBDeleted         if role_cache in self.open_file:
-    # TBDeleted             self.open_file[role_cache].write(line)
             with jsonlines.open(role_json_path, mode='r') as reader:
-                x, y, z = 0, 0, 0
                 for row in reader:
                     role_building = row['location'][0]['display']
                     building_index = self.buildings.index(role_building)
@@ -413,13 +403,17 @@ class GenerateHL7:
         return patient_event
 
     def bundle_data(self, building_event):
+        runtime_init = time.perf_counter()
         try:
             with tempfile.TemporaryDirectory() as temp_dir:
                 # Calling for chace making function
+                cache_time_init = time.perf_counter()
                 buildings = self.get_building(self.range_building)
                 building_names = [ 'Gedung ' + buildings[i] for i in range(len(buildings))]
                 data = Cache(temp_dir, self.path, building_names)
+                cache_time_end = time.perf_counter()
                 print("Cache made sucessfully!")
+                print(f"Elapsed Time: {cache_time_end - cache_time_init}")
                 # Creating Bundle
                 i = 0
                 while True:
@@ -442,15 +436,15 @@ class GenerateHL7:
                                 else:
                                     error = f'Key {key} cannot be listed!'
                                     raise AttributeError (error)
-                            print(random.choice(dr_list))
-                            print(random.choice(nrs_list))
-                            print(random.choice(apt_list))
-                            print(random.choice(lt_list))
+                            # print(random.choice(dr_list))
+                            # print(random.choice(nrs_list))
+                            # print(random.choice(apt_list))
+                            # print(random.choice(lt_list))
                         # Getting rooms
                         rooms_path = temp_path / 'rooms.ndjson'
                         with jsonlines.open(rooms_path, mode='r') as reader:
                             rooms_list = list(reader)
-                            print(random.choice(rooms_list))
+                            random.choice(rooms_list)["id"]
                         # Getting roles
                         roles_path = temp_path / 'roles.ndjson'
                         with jsonlines.open(roles_path, mode='r') as reader:
@@ -464,7 +458,9 @@ class GenerateHL7:
         except KeyboardInterrupt:
             print("\nDeleting cache folder...")
         except Exception as e:
+            runtime_end = time.perf_counter()
             print(f"Error has occured: {e}")
+            print(f"Elapsed runtime: {runtime_end - runtime_init}")
         finally:
             print("\nRuntime finished")
 
@@ -475,5 +471,5 @@ if __name__ == '__main__':
                            range_nurse=4,
                            range_apt=2,
                            range_lt=1)
-    generate.initial_hospital_data()
+    #generate.initial_hospital_data()
     generate.bundle_data('Gedung A')
