@@ -14,7 +14,7 @@ from fhir.resources.patient import PatientCommunication
 # Practitioner
 from fhir.resources.practitioner import PractitionerQualification
 # Encounter
-from fhir.resources.encounter import Encounter, EncounterParticipant
+from fhir.resources.encounter import Encounter, EncounterParticipant, EncounterLocation
 # Generator Resources
 from faker import Faker
 from datetime import datetime, date
@@ -540,15 +540,16 @@ class EncounterGenerator:
     def __init__(self,
                  subject: dict,
                  practitioner: list[dict],
-                 provider: dict,
-                 location: dict,
+                 location_building: str,
+                 location_room: dict
                  ) -> None:
         self.itter_id = next(self.id_itter_gen)
         self.id = self.get_id()
         self.subject = subject
         self.practitioner = practitioner
-        self.provider = provider
-        self.location = location
+        self.location_building = location_building
+        self.location_room = location_room
+        self.encounter_participant = []
 
     def get_id(self) -> str:
         curr_itter_id = self.itter_id
@@ -560,26 +561,69 @@ class EncounterGenerator:
         encounter_id = str(curr_itter_id).zfill(3)
         return f'ENCOUNTER-{month}{day}{hour}{encounter_id}'
         
-    def get_encounter_participant(self,
-                                  _reference: dict | None = None,
-                                  display: str | None = None,
-                                  id: str | None = None):
-        if display and id:
-            reference = Reference(reference=f"Patient/{id}",
-                                  display=display)
-        elif _reference:
-            reference = _reference
-        else:
-            error = f"{_reference}, {display}, {id}, can not be referenced!"
-            raise AttributeError (error)
-        return EncounterParticipant(
-            actor=reference
+    def appending_encounter_patient(self):
+        '''Appending patient encounter into encounter participant list'''
+        patient = self.subject
+        encounter_patient = EncounterParticipant(
+            actor=Reference(
+                reference=f"Patient/{patient["id"]}",
+                display=patient["name"][0]["text"]
+            )
         )
+        self.encounter_participant.append(encounter_patient)
     
-    def generate_encounter(self):
-        encounters = []
-        
-        return
+    def appending_encounter_practitioners(self):
+        '''Appending patient encounter into encounter participant list'''
+        practitioners = self.practitioner
+        for practitioner in practitioners:
+            encounter_practitioner = EncounterParticipant(
+                actor=Reference(
+                    reference=f"Practitioner/{practitioner["id"]}",
+                    display=practitioner["name"][0]["text"]
+                )
+            )
+            self.encounter_participant.append(encounter_practitioner)
+
+    def get_location_encounter(self):
+        '''Generating Building and Room encounters'''
+        room = self.location_room
+        building = self.location_building
+        building_encounter = EncounterLocation(
+            location=Reference(
+                reference=room["partOf"]["reference"],
+                display=building
+            )
+        )
+        room_encounter = EncounterLocation(
+            location=Reference(
+                reference=f"Location/{room["id"]}",
+                display=room["name"]
+            )
+        )
+        return [building_encounter, room_encounter]
+    
+    def generate_encounter(self) -> dict:
+        '''Generating encounter for bundling'''
+        self.appending_encounter_patient()
+        self.appending_encounter_practitioners()
+        encounter_event = Encounter(
+            id=self.id,
+            status="completed",
+            class_fhir=[ # type: ignore
+                CodeableConcept(
+                    coding=[
+                        Coding(
+                            system="http://terminology.hl7.org/CodeSystem/v3-ActCode",
+                            code="AMB",
+                            display="ambulatory"
+                        )
+                    ]
+                )
+            ],
+            participant=self.encounter_participant,
+            location=self.get_location_encounter()
+        )
+        return encounter_event.dict()
 
 class ObservationGenerator:
     @staticmethod
@@ -626,17 +670,17 @@ class ObservationGenerator:
             raise AttributeError (error)
         return {"code": code, "display": display, "category": category}
 
-    def __init__(self, age: date, gender: str) -> None:
+    def __init__(self, age: date, gender: str, status: str) -> None:
         self.age = (datetime.now() - datetime.combine(age, datetime.min.time())).days // 365
         self.gender = gender
-        self.status = random.choice(['normal', 'diabetic'])
+        self.status = status
 
     def __call__(self, 
-                 patient_reference: str,
-                 encounter_reference: str,
-                 doctor_reference: str,
-                 nurse_reference: str,
-                 mt_reference: str) -> list[BundleEntry]:
+                 patient_reference: dict,
+                 encounter_reference: dict,
+                 doctor_reference: dict,
+                 nurse_reference: dict,
+                 lt_reference: dict) -> list[BundleEntry]:
         self.weight = self.weight_generator()
         self.height = self.height_generator()
         self.blood_pressure = self.blood_pressure_generator()
@@ -644,10 +688,10 @@ class ObservationGenerator:
         self.insulin = self.insulin_generator()
         self.skin_fold = self.skin_fold_thickness_generator()
         observation_result = self.observation(patient_reference,
-                                                   encounter_reference,
-                                                   doctor_reference,
-                                                   nurse_reference,
-                                                   mt_reference)
+                                              encounter_reference,
+                                              doctor_reference,
+                                              nurse_reference,
+                                              lt_reference)
         return observation_result
 
     def create_component(self, code: str, display: str):
@@ -868,8 +912,19 @@ class ObservationGenerator:
             thickness = round(thickness, 1)
         return Decimal(str(thickness))
 
-    def observation(self, patient, encounter, doctor, nurse, mt) -> list[BundleEntry]:
+    def observation(self,
+                    patient: dict,
+                    encounter: dict,
+                    doctor: dict,
+                    nurse: dict,
+                    lt: dict) -> list[BundleEntry]:
         observation = []
+        patient_reference = f"Patient/{patient["id"]}"
+        encounter_reference = f"Encounter/{encounter["id"]}"
+        doctor_reference = doctor["practitioner"]["reference"]
+        nurse_reference = nurse["practitioner"]["reference"]
+        lt_reference = lt["practitioner"]["reference"]
+
         def observe_gen(_patient, _encounter, _performer, _observation) -> BundleEntry:
             data = self.get_code_category(_observation)          
             code, display, category = data["code"], data["display"], data["category"]
@@ -883,10 +938,11 @@ class ObservationGenerator:
                 component=self.create_component(code, display)
             )
             return BundleEntry(resource=weight_obs, request={"method": "POST", "url": "Observation"})
-        observation.append(observe_gen(patient, encounter, nurse, "Body Weight"))
-        observation.append(observe_gen(patient, encounter, nurse, "Body Height"))
-        observation.append(observe_gen(patient, encounter, nurse, "Blood Pressure"))
-        observation.append(observe_gen(patient, encounter, mt, "Glucose"))
-        observation.append(observe_gen(patient, encounter, mt, "Insulin"))
-        observation.append(observe_gen(patient, encounter, doctor, "Skinfold"))
+
+        observation.append(observe_gen(patient_reference, encounter_reference, nurse_reference, "Body Weight"))
+        observation.append(observe_gen(patient_reference, encounter_reference, nurse_reference, "Body Height"))
+        observation.append(observe_gen(patient_reference, encounter_reference, nurse_reference, "Blood Pressure"))
+        observation.append(observe_gen(patient_reference, encounter_reference, lt_reference, "Glucose"))
+        observation.append(observe_gen(patient_reference, encounter_reference, lt_reference, "Insulin"))
+        observation.append(observe_gen(patient_reference, encounter_reference, doctor_reference, "Skinfold"))
         return observation

@@ -400,13 +400,62 @@ class GenerateHL7:
             multipleBirthInteger = patient.multiple_birth,
             link = patient.patient_link
         )
-        return patient_event
+        return patient_event.dict()
+
+    @staticmethod
+    def get_practitioner_list(temp_path):
+        '''Static Method for reading practitioner cache into a list'''
+        practitioners_path = temp_path / 'practitioner.pkl'
+        with open(practitioners_path, 'rb') as file:
+            practitioner_dict = pickle.load(file)
+            dr_list, nrs_list, apt_list, lt_list = [], [], [], []
+            for key, value in practitioner_dict.items():
+                if key == 'dr':
+                    dr_list = value
+                elif key == 'nrs':
+                    nrs_list = value
+                elif key == 'apt':
+                    apt_list = value
+                elif key == 'lt':
+                    lt_list = value
+                else:
+                    error = f'Key {key} cannot be listed!'
+                    raise AttributeError (error)
+        return dr_list, nrs_list, apt_list, lt_list
+
+    @staticmethod
+    def get_room_list(temp_path) -> list[dict]:
+        '''Static Method for reading rooms cache into a list'''
+        rooms_path = temp_path / 'rooms.ndjson'
+        with jsonlines.open(rooms_path, mode='r') as reader:
+            rooms_list = list(reader)
+        return rooms_list
+
+    @staticmethod
+    def get_role_list(temp_path) -> dict[str, str]:
+        '''Static Method for reading roles cache into a hashmap'''
+        roles_path = temp_path / 'roles.ndjson'
+        roles_dict = {}
+        with jsonlines.open(roles_path, mode='r') as reader:
+            for row in reader:
+                idx = row['practitioner']['reference'].index("/") 
+                roles_dict.update({row['practitioner']['reference'][idx+1:] : row})
+        return roles_dict
+
+    @staticmethod
+    def get_role_encounters(practitioner_encounters, roles_dict) -> list[dict]:
+        role_encounters = []
+        for practitioner in practitioner_encounters:
+            practitioner_id = practitioner["id"]
+            if practitioner_id in roles_dict:
+                role_encounters.append(roles_dict[practitioner_id])
+        return role_encounters
 
     def bundle_data(self, building_event):
         runtime_init = time.perf_counter()
         try:
             with tempfile.TemporaryDirectory() as temp_dir:
-                # Calling for chace making function
+                #---Creating Cache---
                 cache_time_init = time.perf_counter()
                 buildings = self.get_building(self.range_building)
                 building_names = [ 'Gedung ' + buildings[i] for i in range(len(buildings))]
@@ -414,46 +463,48 @@ class GenerateHL7:
                 cache_time_end = time.perf_counter()
                 print("Cache made sucessfully!")
                 print(f"Elapsed Time: {cache_time_end - cache_time_init}")
-                # Creating Bundle
-                i = 0
+                #---Creating Bundle---
+                temp_path = Path(temp_dir) / building_event
+                # Getting practitioners
+                dr_list, nrs_list, apt_list, lt_list = self.get_practitioner_list(temp_path)
+                # Getting location
+                rooms_list = self.get_room_list(temp_path)
+                # Getting roles
+                roles_dict = self.get_role_list(temp_path)
                 while True:
-                    temp_path = Path(temp_dir) / building_event
-                    if i == 0:
-                        # Getting practitioners
-                        practitioners_path = temp_path / 'practitioner.pkl'
-                        with open(practitioners_path, 'rb') as file:
-                            practitioner_dict = pickle.load(file)
-                            dr_list, nrs_list, apt_list, lt_list = [], [], [], []
-                            for key, value in practitioner_dict.items():
-                                if key == 'dr':
-                                    dr_list = value
-                                elif key == 'nrs':
-                                    nrs_list = value
-                                elif key == 'apt':
-                                    apt_list = value
-                                elif key == 'lt':
-                                    lt_list = value
-                                else:
-                                    error = f'Key {key} cannot be listed!'
-                                    raise AttributeError (error)
-                            # print(random.choice(dr_list))
-                            # print(random.choice(nrs_list))
-                            # print(random.choice(apt_list))
-                            # print(random.choice(lt_list))
-                        # Getting rooms
-                        rooms_path = temp_path / 'rooms.ndjson'
-                        with jsonlines.open(rooms_path, mode='r') as reader:
-                            rooms_list = list(reader)
-                            random.choice(rooms_list)["id"]
-                        # Getting roles
-                        roles_path = temp_path / 'roles.ndjson'
-                        with jsonlines.open(roles_path, mode='r') as reader:
-                            for row in reader:
-                                idx = row['practitioner']['reference'].index("/") 
-                                print(row['practitioner']['reference'][idx+1:])
-                        i +=1
+                    # Getting Patient
                     patient = resources.PatientGenerator()
                     patient_event = self.get_patient(patient)
+                    patient_state = random.choice(["diabetic", "normal"]) 
+                    # Getting random practitioners
+                    practitioner_encounters = []
+                    dr_event = random.choice(dr_list)
+                    practitioner_encounters.append(dr_event)
+                    nrs_event = random.choice(nrs_list)
+                    practitioner_encounters.append(nrs_event)
+                    lt_event = random.choice(lt_list)
+                    practitioner_encounters.append(lt_event)
+                    # Getting location event
+                    room_encounter = random.choice(rooms_list)
+                    role_encounters = self.get_role_encounters(practitioner_encounters, roles_dict)
+                    encounter = resources.EncounterGenerator(subject=patient_event,
+                                                             practitioner=practitioner_encounters,
+                                                             location_building=building_event,
+                                                             location_room=room_encounter)
+                    encounter_event = encounter.generate_encounter()
+                    observation = resources.ObservationGenerator(patient.birth_date,
+                                                                 patient.gender,
+                                                                 patient_state)
+                    observation_event = observation(patient_event,
+                                                    encounter_event,
+                                                    dr_event,
+                                                    nrs_event,
+                                                    lt_event)
+                    bundle_payload = self.get_bundle(patient_event,
+                                                     practitioner_encounters,
+                                                     role_encounters,
+                                                     encounter_event,
+                                                     )
                     time.sleep(1)
         except KeyboardInterrupt:
             print("\nDeleting cache folder...")
