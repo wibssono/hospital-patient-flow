@@ -921,9 +921,9 @@ class ObservationGenerator:
         observation = []
         patient_reference = f"Patient/{patient["id"]}"
         encounter_reference = f"Encounter/{encounter["id"]}"
-        doctor_reference = doctor["practitioner"]["reference"]
-        nurse_reference = nurse["practitioner"]["reference"]
-        lt_reference = lt["practitioner"]["reference"]
+        doctor_reference = f"Practitioner/{doctor["id"]}"
+        nurse_reference = f"Practitioner/{nurse["id"]}"
+        lt_reference = f"Practitioner/{lt["id"]}"
 
         def observe_gen(_patient, _encounter, _performer, _observation) -> BundleEntry:
             data = self.get_code_category(_observation)          

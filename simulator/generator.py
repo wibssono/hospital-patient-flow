@@ -21,78 +21,6 @@ from pathlib import Path
 
 fake = Faker('id_ID')
 
-# class _ResourceGenerator:
-#     @staticmethod
-#     def generate_patient_event() -> Patient:
-#         patient = resources.PatientGenerator()
-#         patient_event = Patient(
-#             id = patient.id,
-#             name = patient.name,
-#             gender = patient.gender,
-#             birthDate = patient.birth_date,
-#             multipleBirthInteger = patient.multiple_birth,
-#             link = patient.patient_link
-#         )
-#         return patient_event
-
-#     @staticmethod
-#     def generate_practitioner_event(practitioner: Literal['dr', 'nrs', 'apt', 'lt']) -> Practitioner:
-#         practicioner = resources.PracticionerGenerator(practitioner)
-#         practitioner_event = Practitioner(
-#             id = practicioner.id,
-#             name = practicioner.name,
-#             qualification = [practicioner.qualification],
-#             gender= practicioner.gender,
-#             birthDate= practicioner.birth_date
-#         )
-#         return practitioner_event
-    
-#     @staticmethod
-#     def generate_organization(identifier=str(random.randrange(1000000, 9999999))) -> Organization:
-#         organization = resources.OrganizationGenerator(identifier)
-#         organization_event = Organization(
-#             identifier=organization.identifier,
-#             active=organization.active,
-#             type=organization.type,
-#             name=organization.name,
-#             alias=organization.alias,
-#             contact=organization.contact
-#         )
-#         return organization_event
-
-#     @staticmethod
-#     def generate_location(_building: Literal['B', 'R'],
-#                           _status: str = "active"):
-#         location = resources.LocationGenerator(building=_building)
-#         location_event = Location(
-#             id=location.id,
-#             status=_status,
-#             name=location.name,
-#             form=location.form,
-#             extension=location.extension
-#         )
-#         return location_event
-
-#     @staticmethod
-#     def generate_observation(date_of_birth: date, gender: str) -> list[BundleEntry]:
-#         observation = resources.ObservationGenerator(age=date_of_birth, gender=gender)
-#         return observation('001', '002', '10001', '10002', '10003')
-
-#     def generate_bundle(self) -> Bundle:
-#         patient = self.generate_patient_event()
-#         practitioner = self.generate_practitioner_event('nrs')
-#         observation = self.generate_observation(patient.birthDate, patient.gender)
-#         _entry = [
-#             BundleEntry(resource=patient, request={"method": "POST", "url": "Patient"}),
-#             BundleEntry(resource=practitioner, request={"method": "POST", "url": "Practitioner"})
-#         ]
-#         _entry.extend(observation)
-#         bundle = Bundle(
-#             type='transaction',
-#             entry=_entry
-#             )
-#         return bundle
-
 class Cache:
     def __init__(self,temp_path: str,
                  data_path: str,
@@ -258,7 +186,7 @@ class GenerateHL7:
                  range_nurse: int,
                  range_apt: int,
                  range_lt: int,
-                 path: str = 'hospital_data'
+                 path: str = '/home/wibssono/Projects/hospital-patient-flow/hospital_data'
                  ):
         self.path = path
         self.requirements = ['dr', 'nrs', 'apt', 'lt']
@@ -451,6 +379,20 @@ class GenerateHL7:
                 role_encounters.append(roles_dict[practitioner_id])
         return role_encounters
 
+    @staticmethod
+    def get_bundle(patient, practitioner, role, encounter, observation):
+        bundle = Bundle(
+            type="transaction",
+            entry=[]
+        )
+        bundle.entry.append(BundleEntry(resource=patient, request={"method": "POST", "url": "Patient"}))
+        for practitioner, role in zip(practitioner, role):
+            bundle.entry.append(BundleEntry(resource=practitioner, request={"method": "POST", "url": "Practitioner"}))
+            bundle.entry.append(BundleEntry(resource=role, request={"method": "POST", "url": "PractitionerRole"}))
+        bundle.entry.append(BundleEntry(resource=encounter, request={"method": "POST", "url": "Encounter"}))
+        bundle.entry.append(observation)
+        return bundle
+
     def bundle_data(self, building_event):
         runtime_init = time.perf_counter()
         try:
@@ -471,7 +413,8 @@ class GenerateHL7:
                 rooms_list = self.get_room_list(temp_path)
                 # Getting roles
                 roles_dict = self.get_role_list(temp_path)
-                while True:
+                i = 0
+                while i != 1:
                     # Getting Patient
                     patient = resources.PatientGenerator()
                     patient_event = self.get_patient(patient)
@@ -504,16 +447,17 @@ class GenerateHL7:
                                                      practitioner_encounters,
                                                      role_encounters,
                                                      encounter_event,
-                                                     )
-                    time.sleep(1)
+                                                     observation_event)
+                    yield bundle_payload
         except KeyboardInterrupt:
             print("\nDeleting cache folder...")
         except Exception as e:
             runtime_end = time.perf_counter()
             print(f"Error has occured: {e}")
-            print(f"Elapsed runtime: {runtime_end - runtime_init}")
+            print(f"Elapsed runtime until error: {runtime_end - runtime_init}")
         finally:
             print("\nRuntime finished")
+        return
 
 if __name__ == '__main__':
     generate = GenerateHL7(range_building=2,

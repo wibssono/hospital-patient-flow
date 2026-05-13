@@ -1,5 +1,5 @@
 import generator
-from resources import time
+import time
 
 if __name__ == "__main__":
     print("Which FHIR resource do you want to generate?")
